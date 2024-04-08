@@ -1,48 +1,53 @@
-import fastify from "fastify"
-import {z} from 'zod'
-import { PrismaClient } from "@prisma/client"
+import fastify from "fastify";
 
-const app = fastify()
+import fastifySwagger from "@fastify/swagger";
+import fastifySwaggerUI from "@fastify/swagger-ui";
+import fastifyCors from "@fastify/cors";
 
-const prisma = new PrismaClient({
-    log: ['query'],
+import { serializerCompiler, validatorCompiler, jsonSchemaTransform, ZodTypeProvider } from 'fastify-type-provider-zod'
+import { createEvent } from "./routes/create-event";
+import { registerForEvent } from "./routes/register-for-event";
+import { getEvent } from "./routes/get-event";
+import { getAttendeeBadge } from "./routes/get-attendee-badge";
+import { checkIn } from "./routes/check-in";
+import { getEventAttendees } from "./routes/get-event-attendees";
+import { errorHandler } from "./error-handler";
+
+export const app = fastify().withTypeProvider<ZodTypeProvider>()
+
+app.register(fastifyCors, {
+  origin: '*',
 })
 
-// Métodos HTTP: GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS, ... (o que vamos fazer)
-// Corpo da requisição (Request Body)
-// Parâmetros de busca (Search Params / Query Params) 'http://localhost:3333/users?name=Diego'
-// Parâmetros de rota (Rout Params) -> Identificação de recursos 'DELETE http://localhost:3333/users/5' (parâmetros obrigatórios e não nomeados.)
-// Cabeçalhos (Headers) -> Contexto "autenticação, idioma, fuso-horário..."
-
-// Semânticas = Significado 
-
-// BD Driver nativo 
-// Query builders (knex.js) 
-// ORMs -> (Object Relational Mapping) ex.: PRISMA, SEQUELIZE, Hibernate, Doctrine, ActiveRecord
-
-//
-
-app.post("/events", async (request, reply) => {
-
-    const createEventSchema = z.object({
-        title: z.string().min(4),
-        details: z.string().nullable(),
-        maximumAttendees: z.number().int().positive().nullable()
-    })
-    const data = createEventSchema.parse(request.body)
-
-    const event = await prisma.event.create({
-        data: {
-            title: data.title,
-            details: data.details,
-            maximumAttendees: data.maximumAttendees,
-            slug: new Date().toISOString()
-        },
-    })
-
-    return {eventId: event.id}
+app.register(fastifySwagger, {
+  swagger: {
+    consumes: ['application/json'],
+    produces: ['application/json'],
+    info: {
+      title: 'pass.in',
+      description: 'Especificações da API para o back-end da aplicação pass.in construída durante o NLW Unite da Rocketseat.',
+      version: '1.0.0'
+    },
+  },
+  transform: jsonSchemaTransform,
 })
 
-app.listen({ port: 3333 }).then(() => {
-    console.log('HTTP server running!')
+app.register(fastifySwaggerUI, {
+  routePrefix: '/docs',
+})
+
+app.setValidatorCompiler(validatorCompiler);
+app.setSerializerCompiler(serializerCompiler);
+
+app.register(createEvent)
+app.register(registerForEvent)
+app.register(getEvent)
+app.register(getAttendeeBadge)
+app.register(checkIn)
+app.register(getEventAttendees)
+
+app.setErrorHandler(errorHandler)
+
+app.listen({ port: 3333, host: '0.0.0.0' }).then(() => {
+  console.log('HTTP server running!')
 })
